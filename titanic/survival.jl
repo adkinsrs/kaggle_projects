@@ -2,10 +2,13 @@
 
 # Trying to recreate the R code from https://www.kaggle.com/mrisdal/titanic/exploring-survival-on-the-titanic
 
+module Survival
+
 using DataFrames
 using DecisionTree
+#using Gadfly
 
-showln(x) = (show(x); println())
+showln(x) = (show(x); println())    # Quick function to show variable on its own line
 
 # Load in the training data
 train = readtable("../input/train.csv")
@@ -20,11 +23,13 @@ test = readtable("../input/test.csv")
 # Attempt to combine 'train' and 'test' data frames (similar to R dplyr.bind_rows)
 #full = join(train, test, on=:PassengerId)
 
+###
 # Feature Engineering - Breaking down passenger names
+###
 
 # Add a new column parsing out the passenger's formal title, if applicable
 # Personal note: the final param in 'replace' needs to be dbl-quotes, otherwise "Invalid Character Literal" error pops up
-train[:Title] = map((x) -> replace(x, r"(.*, )|(\..*)", ""), train[:Name])
+train[:Title] = map(x -> replace(x, r"(.*, )|(\..*)", ""), train[:Name])
 
 # create a table showing counts of formal titles by gender
 showln( by(train, [:Sex, :Title], nrow) )
@@ -49,7 +54,22 @@ map!((x) ->
 showln( by(train, [:Sex, :Title], nrow) )
 
 # Determine surnames from passenger names
-train[:Surname] = map((x) -> split(x, r"[,.]")[1], train[:Name])
+train[:Surname] = map(x -> split(x, r"[,.]")[1], train[:Name])
 
 # Probaby could have gotten the unique surnames a better way
 println(@sprintf("\nWe have %d unique surnames.", nrow(by(train, :Surname, nrow)) ))
+
+###
+# Feature Engineering - Breaking down passenger names
+###
+
+# Create a family size variable including the passenger themselves
+train[:Fsize] = map((x,y) -> x + y + 1, train[:SibSp], train[:Parch])
+
+# Create a family variable
+train[:Family] = map(x -> join(x, "_"), zip(train[:Surname], train[:Fsize]))
+
+train_counts =  by(train, [:Fsize, :Survived], nrow)
+plot(train_counts, x=:Fsize, y=:x1, color=:Survived, Guide.xlabel("Family Size"), Guide.ylabel("Count"), Geom.bar(position=:dodge), Scale.x_continuous(minvalue=1, maxvalue=11))
+
+end # module Survival
