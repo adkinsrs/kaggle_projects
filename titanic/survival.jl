@@ -69,6 +69,7 @@ train[:Fsize] = map((x,y) -> x + y + 1, train[:SibSp], train[:Parch])
 # Create a family variable
 train[:Family] = map(x -> join(x, "_"), zip(train[:Surname], train[:Fsize]))
 
+# Count the number of survivors per family size and plot
 train_counts =  by(train, [:Fsize, :Survived], nrow)
 p = plot(train_counts, x=:Fsize, y=:x1, color=:Survived,
     Guide.xlabel("Family Size"), Guide.ylabel("Count"),
@@ -78,6 +79,24 @@ p = plot(train_counts, x=:Fsize, y=:x1, color=:Survived,
 )
 img = SVG("survival_by_family_size.svg", 6inch, 4inch)
 draw(img, p)
+
+# Categgorize family sizes (1, 2-4, 5+)
+train[:FsizeD] = map(x ->
+    if x == 1
+        "singleton"
+    elseif x > 4
+        "large"
+    else    # x is > 1 and < 5
+        "small"
+    end
+    , train[:Fsize])
+#showln(train)
+
+### Gadfly does not seem to support a mosaic plot, so we'll just skip this
+
+###
+# Cabin Information
+###
 
 
 end # module Survival
