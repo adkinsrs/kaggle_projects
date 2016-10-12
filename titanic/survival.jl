@@ -6,7 +6,7 @@ module Survival
 
 using DataFrames
 using DecisionTree
-#using Gadfly
+using Gadfly
 
 showln(x) = (show(x); println())    # Quick function to show variable on its own line
 
@@ -70,6 +70,14 @@ train[:Fsize] = map((x,y) -> x + y + 1, train[:SibSp], train[:Parch])
 train[:Family] = map(x -> join(x, "_"), zip(train[:Surname], train[:Fsize]))
 
 train_counts =  by(train, [:Fsize, :Survived], nrow)
-plot(train_counts, x=:Fsize, y=:x1, color=:Survived, Guide.xlabel("Family Size"), Guide.ylabel("Count"), Geom.bar(position=:dodge), Scale.x_continuous(minvalue=1, maxvalue=11))
+p = plot(train_counts, x=:Fsize, y=:x1, color=:Survived,
+    Guide.xlabel("Family Size"), Guide.ylabel("Count"),
+    Guide.xticks(ticks=collect(1:11)),
+    Geom.bar(position=:dodge),
+    Scale.color_discrete()
+)
+img = SVG("survival_by_family_size.svg", 6inch, 4inch)
+draw(img, p)
+
 
 end # module Survival
