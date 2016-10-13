@@ -41,13 +41,13 @@ rare_title = ["Dona", "Lady", "the Countess","Capt", "Col", "Don",
 # Also rename Mlle, Ms, Mme, and rare titles using in-place mapping
 map!((x) ->
     if x == "Mlle" || x == "Ms"
-        x = "Miss"
+        "Miss"
     elseif x == "Mme"
-        x = "Mrs"
+        "Mrs"
     elseif in(x, rare_title)
-        x = "Rare Title"
+        "Rare Title"
     else
-        x = x   # Needed this, otherwise "Nothing" would show up for other titles
+        x   # Needed this, otherwise "Nothing" would show up for other titles
     end
     , train[:Title])
 
@@ -57,16 +57,17 @@ showln( by(train, [:Sex, :Title], nrow) )
 train[:Surname] = map(x -> split(x, r"[,.]")[1], train[:Name])
 
 # Probaby could have gotten the unique surnames a better way
+# Also didn't feel like looking up how to embed HTML tags, like the example
 println(@sprintf("\nWe have %d unique surnames.", nrow(by(train, :Surname, nrow)) ))
 
 ###
-# Feature Engineering - Breaking down passenger names
+# Feature Engineering - Does family size correlate with survival?
 ###
 
 # Create a family size variable including the passenger themselves
 train[:Fsize] = map((x,y) -> x + y + 1, train[:SibSp], train[:Parch])
 
-# Create a family variable
+# Create a family variable (to distinguish multiple families with same surname)
 train[:Family] = map(x -> join(x, "_"), zip(train[:Surname], train[:Fsize]))
 
 # Count the number of survivors per family size and plot
@@ -95,8 +96,50 @@ train[:FsizeD] = map(x ->
 ### Gadfly does not seem to support a mosaic plot, so we'll just skip this
 
 ###
-# Cabin Information
+# Feature Engineering - Cabin Information
 ###
 
+# Just showing we have a lot of missing cabin information
+showln(train[:Cabin][1:28])
+
+# Split the second entry per letter
+showln( split(train[:Cabin][2], "") )
+
+# Create a Deck designation using the first letter of the Cabin
+train[:Deck] = map(x ->
+    if isna(x)
+        x
+    else
+        split(x, "")[1]
+    end
+    , train[:Cabin])
+# According to earlier, 687 rows are missing cabin information, so it's not terribly useful
+
+###
+# Missingness - Adding sensible data for missing values
+###
+
+# Show that these are the 2 rows with missing embarkation data
+showln(train[ [62, 830], [:Embarked] ])
+
+println(@sprintf("We will infer their values for **embarkment** based on present data that we can imagine may be relevant: **passenger class** and **fare**. We see that they paid \$%d and \$%d respectively and their classes are %s and %s. So from where did they embark?",
+    train[ [62, 830], [:Fare] ][1][1],
+    train[ [62, 830], [:Fare] ][1][2],
+    train[ [62, 830], [:Pclass] ][1][1],
+    train[ [62, 830], [:Pclass] ][1][2],
+    ))
+
+# Create dataframe of only the passengers with embark information
+# Personal note... the 'find' command is collecting indexes from rows where isna() returned 0
+embarked = train[find(!isna(train[:,:Embarked])), :]
+
+# Boxplot of embarking location vs fare with respect to passenger classes
+p = plot(
+    embarked, x=:Embarked, y=:Fare, color=:Pclass, yintercept=80,
+    Geom.boxplot, Geom.hline(color="red", size=2)
+    Scale.y_continuous(labels = y -> @sprintf("\$%d",y))
+)
+img = SVG("embark_fare_pclass.svg", 6inch, 4inch)
+draw(img, p)
 
 end # module Survival
