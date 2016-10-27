@@ -134,12 +134,13 @@ println(@sprintf("We will infer their values for **embarkment** based on present
 embarked = train[find(!isna(train[:,:Embarked])), :]
 
 # Boxplot of embarking location vs fare with respect to passenger classes
-p = plot(
-    embarked, x=:Embarked, y=:Fare, color=:Pclass, yintercept=80,
-    Geom.boxplot, Geom.hline(color="red", size=2)
+# NOTE - The example has a Geom.hline red color line, but I'm getting StackOverflow errors when adding that
+p2 = plot(
+    embarked, x=:Embarked, y=:Fare, color=:Pclass, yintercept=[80],
+    Geom.boxplot(), Geom.hline(color=colorant"red", size=2mm),
     Scale.y_continuous(labels = y -> @sprintf("\$%d",y))
 )
-img = SVG("embark_fare_pclass.svg", 6inch, 4inch)
-draw(img, p)
+img2 = SVG("embark_fare_pclass.svg", 6inch, 4inch)
+draw(img2, p2)
 
 end # module Survival
