@@ -6,7 +6,10 @@ module Survival
 
 using DataFrames
 using DecisionTree
-using Gadfly
+using StatPlots
+
+# Dabbled with UnicodePlots but I guess my terminal settings were conflicting
+plotly()
 
 showln(x) = (show(x); println())    # Quick function to show variable on its own line
 
@@ -21,7 +24,9 @@ println(@sprintf("\nThere are %d rows in the training set", nrow(train)))
 test = readtable("../input/test.csv")
 
 # Attempt to combine 'train' and 'test' data frames (similar to R dplyr.bind_rows)
-#full = join(train, test, on=:PassengerId)
+full = DataFrame(train)
+full = vcat(full, test)
+# Apparently could have also wrote 'full = [train ; test] as a shortcut to vcat
 
 ###
 # Feature Engineering - Breaking down passenger names
@@ -29,10 +34,10 @@ test = readtable("../input/test.csv")
 
 # Add a new column parsing out the passenger's formal title, if applicable
 # Personal note: the final param in 'replace' needs to be dbl-quotes, otherwise "Invalid Character Literal" error pops up
-train[:Title] = map(x -> replace(x, r"(.*, )|(\..*)", ""), train[:Name])
+full[:Title] = map(x -> replace(x, r"(.*, )|(\..*)", ""), full[:Name])
 
 # create a table showing counts of formal titles by gender
-showln( by(train, [:Sex, :Title], nrow) )
+showln( by(full, [:Sex, :Title], nrow) )
 
 # Rare titles are kept in an array
 rare_title = ["Dona", "Lady", "the Countess","Capt", "Col", "Don",
@@ -49,40 +54,39 @@ map!((x) ->
     else
         x   # Needed this, otherwise "Nothing" would show up for other titles
     end
-    , train[:Title])
+    , full[:Title])
 
-showln( by(train, [:Sex, :Title], nrow) )
+showln( by(full, [:Sex, :Title], nrow) )
 
 # Determine surnames from passenger names
-train[:Surname] = map(x -> split(x, r"[,.]")[1], train[:Name])
+full[:Surname] = map(x -> split(x, r"[,.]")[1], full[:Name])
 
 # Probaby could have gotten the unique surnames a better way
 # Also didn't feel like looking up how to embed HTML tags, like the example
-println(@sprintf("\nWe have %d unique surnames.", nrow(by(train, :Surname, nrow)) ))
+println(@sprintf("\nWe have %d unique surnames.", nrow(by(full, :Surname, nrow)) ))
 
 ###
 # Feature Engineering - Does family size correlate with survival?
 ###
 
 # Create a family size variable including the passenger themselves
-train[:Fsize] = map((x,y) -> x + y + 1, train[:SibSp], train[:Parch])
+full[:Fsize] = map((x,y) -> x + y + 1, full[:SibSp], full[:Parch])
 
 # Create a family variable (to distinguish multiple families with same surname)
-train[:Family] = map(x -> join(x, "_"), zip(train[:Surname], train[:Fsize]))
+full[:Family] = map(x -> join(x, "_"), zip(full[:Surname], full[:Fsize]))
 
-# Count the number of survivors per family size and plot
-train_counts =  by(train, [:Fsize, :Survived], nrow)
-p = plot(train_counts, x=:Fsize, y=:x1, color=:Survived,
-    Guide.xlabel("Family Size"), Guide.ylabel("Count"),
-    Guide.xticks(ticks=collect(1:11)),
-    Geom.bar(position=:dodge),
-    Scale.color_discrete()
-)
-img = SVG("survival_by_family_size.svg", 6inch, 4inch)
-draw(img, p)
+# Count the number of survivors per family size (from training set) and plot
+train_counts =  by(full[1:891,:] , [:Fsize, :Survived], nrow)
+
+p = bar(train_counts, :Fsize, :x1, group=:Survived)
+xaxis!("Family Size")
+xticks!(collect(1:11))
+yaxis!("Count")
+title!("Survival by Family Size")
+#gui()
 
 # Categgorize family sizes (1, 2-4, 5+)
-train[:FsizeD] = map(x ->
+full[:FsizeD] = map(x ->
     if x == 1
         "singleton"
     elseif x > 4
@@ -90,29 +94,28 @@ train[:FsizeD] = map(x ->
     else    # x is > 1 and < 5
         "small"
     end
-    , train[:Fsize])
-#showln(train)
+    , full[:Fsize])
 
-### Gadfly does not seem to support a mosaic plot, so we'll just skip this
+### Currently unsure on how to create mosaic plot, so we'll just skip this
 
 ###
 # Feature Engineering - Cabin Information
 ###
 
 # Just showing we have a lot of missing cabin information
-showln(train[:Cabin][1:28])
+showln(full[:Cabin][1:28])
 
 # Split the second entry per letter
-showln( split(train[:Cabin][2], "") )
+showln( split(full[:Cabin][2], "") )
 
 # Create a Deck designation using the first letter of the Cabin
-train[:Deck] = map(x ->
+full[:Deck] = map(x ->
     if isna(x)
         x
     else
         split(x, "")[1]
     end
-    , train[:Cabin])
+    , full[:Cabin])
 # According to earlier, 687 rows are missing cabin information, so it's not terribly useful
 
 ###
@@ -120,27 +123,55 @@ train[:Deck] = map(x ->
 ###
 
 # Show that these are the 2 rows with missing embarkation data
-showln(train[ [62, 830], [:Embarked] ])
+showln(full[ [62, 830], [:Embarked] ])
 
 println(@sprintf("We will infer their values for **embarkment** based on present data that we can imagine may be relevant: **passenger class** and **fare**. We see that they paid \$%d and \$%d respectively and their classes are %s and %s. So from where did they embark?",
-    train[ [62, 830], [:Fare] ][1][1],
-    train[ [62, 830], [:Fare] ][1][2],
-    train[ [62, 830], [:Pclass] ][1][1],
-    train[ [62, 830], [:Pclass] ][1][2],
+    full[ [62, 830], [:Fare] ][1][1],
+    full[ [62, 830], [:Fare] ][1][2],
+    full[ [62, 830], [:Pclass] ][1][1],
+    full[ [62, 830], [:Pclass] ][1][2],
     ))
 
 # Create dataframe of only the passengers with embark information
 # Personal note... the 'find' command is collecting indexes from rows where isna() returned 0
-embarked = train[find(!isna(train[:,:Embarked])), :]
-
+embarked = full[find(!isna(full[:,:Embarked])), :]
+# Tutorial doesn't do this but one "Fare" is missing, and Julia doesn't like to plot with NA columns
+embarked = embarked[find(!isna(embarked[:,:Fare])), :]
 # Boxplot of embarking location vs fare with respect to passenger classes
-# NOTE - The example has a Geom.hline red color line, but I'm getting StackOverflow errors when adding that
-p2 = plot(
-    embarked, x=:Embarked, y=:Fare, color=:Pclass, yintercept=[80],
-    Geom.boxplot(), Geom.hline(color=colorant"red", size=2mm),
-    Scale.y_continuous(labels = y -> @sprintf("\$%d",y))
-)
-img2 = SVG("embark_fare_pclass.svg", 6inch, 4inch)
-draw(img2, p2)
+showcols(embarked)
+quit()
+p2 = boxplot(embarked, :Embarked, :Fare, group=:Pclass)
+#plot!(x=:, y=80
+yaxis(y -> @sprintf("\$%d",y))
+
+gui()
+#     embarked, x=:Embarked, y=:Fare, color=:Pclass, yintercept=[80],
+#     Geom.boxplot(), Geom.hline(color=colorant"red", size=2mm),
+# )
+quit()
+# Passengers 62 and 830 apparently embarked from Charbourg ('C') so fix N/A
+full[ [62,830], [:Embarked] ] = "C";
+
+### Skipping to section 4 ###
+
+
+###
+# Prediction
+###
+
+### Split back into training and test datasets
+# NOTE I never joined the datasets to begin with.  Eventually will edit code to do that.
+
+### Building the RandomForests model
+
+#Survival is our factor
+labels = convert(Array, train[:, :Survived])
+# These others are features we want to compare against (leaving out Child and Mother for now)
+features = convert(Array, train[:, [:Pclass, :Sex, :Age, :SibSp, :Parch, :Fare, :Embarked, :Title, :FsizeD] ])
+# Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
+rf_model = build_forest(labels, features, 3, 100, 1.0)
+apply_forest(rf_model, train)
+
+p = plot(rf_model, ylim=[0,0.36])
 
 end # module Survival
