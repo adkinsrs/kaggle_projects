@@ -123,13 +123,14 @@ full[:Deck] = map(x ->
 ###
 
 # Show that these are the 2 rows with missing embarkation data
-showln(full[ [62, 830], [:Embarked] ])
+# NOTE: Brackets around :Embarked returns DataFrame. No brackets returns String Array
+showln(full[ [62, 830],[:Embarked] ])
 
 println(@sprintf("We will infer their values for **embarkment** based on present data that we can imagine may be relevant: **passenger class** and **fare**. We see that they paid \$%d and \$%d respectively and their classes are %s and %s. So from where did they embark?",
-    full[ [62, 830], [:Fare] ][1][1],
-    full[ [62, 830], [:Fare] ][1][2],
-    full[ [62, 830], [:Pclass] ][1][1],
-    full[ [62, 830], [:Pclass] ][1][2],
+    full[ [62, 830],[:Fare] ][1][1],
+    full[ [62, 830],[:Fare] ][1][2],
+    full[ [62, 830],[:Pclass] ][1][1],
+    full[ [62, 830],[:Pclass] ][1][2],
     ))
 
 # Create dataframe of only the passengers with embark information
@@ -137,20 +138,34 @@ println(@sprintf("We will infer their values for **embarkment** based on present
 embarked = full[find(!isna(full[:,:Embarked])), :]
 # Tutorial doesn't do this but one "Fare" is missing, and Julia doesn't like to plot with NA columns
 embarked = embarked[find(!isna(embarked[:,:Fare])), :]
-# Boxplot of embarking location vs fare with respect to passenger classes
 showcols(embarked)
-quit()
-p2 = boxplot(embarked, :Embarked, :Fare, group=:Pclass)
-#plot!(x=:, y=80
-yaxis(y -> @sprintf("\$%d",y))
 
-gui()
-#     embarked, x=:Embarked, y=:Fare, color=:Pclass, yintercept=[80],
-#     Geom.boxplot(), Geom.hline(color=colorant"red", size=2mm),
-# )
-quit()
+# Boxplot of embarking location vs fare with respect to passenger classes
+# NOTE: As of right now, I'm not sure how to "unstack" the boxplot
+p2 = boxplot(embarked, :Embarked, :Fare, group=:Pclass)
+hline!([80], ls=:dash, lc=:red, lw=2, label="")
+yaxis!(y -> @sprintf("\$%d",y))
+#gui()
+
 # Passengers 62 and 830 apparently embarked from Charbourg ('C') so fix N/A
-full[ [62,830], [:Embarked] ] = "C";
+full[ [62,830], :Embarked ] = "C";
+
+# Fix the null Fare value for this passenger (was eliminated from "embarked" subset)
+showln(full[1044,:])
+#Remove our NA fare passenger in this subset
+fare = full[find(!isna(full[:,:Fare])), :]
+S_3_fare = fare[ (fare[:Pclass] .== 3) & (fare[:Embarked] .== "S"), :]
+# NOTE - Adding "." in front of the comparison operator allows for element-wise comparisons in arrays
+# Also, one must use "&" instead of "&&" to combine conditions
+
+# Density plot showing the fare for all 3rd class passengers boarding from Southampton
+p3 = density(S_3_fare, :Fare, fc=:blue, fa=0.4, label="")
+vline!([median(S_3_fare[:Fare])], ls=:dash, lc=:red, lw=1, label="")
+xaxis!(x -> @sprintf("\$%d",x))
+gui()
+
+quit()
+
 
 ### Skipping to section 4 ###
 
@@ -165,13 +180,13 @@ full[ [62,830], [:Embarked] ] = "C";
 ### Building the RandomForests model
 
 #Survival is our factor
-labels = convert(Array, train[:, :Survived])
-# These others are features we want to compare against (leaving out Child and Mother for now)
-features = convert(Array, train[:, [:Pclass, :Sex, :Age, :SibSp, :Parch, :Fare, :Embarked, :Title, :FsizeD] ])
-# Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
-rf_model = build_forest(labels, features, 3, 100, 1.0)
-apply_forest(rf_model, train)
-
-p = plot(rf_model, ylim=[0,0.36])
+# labels = convert(Array, train[:, :Survived])
+# # These others are features we want to compare against (leaving out Child and Mother for now)
+# features = convert(Array, train[:, [:Pclass, :Sex, :Age, :SibSp, :Parch, :Fare, :Embarked, :Title, :FsizeD] ])
+# # Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
+# rf_model = build_forest(labels, features, 3, 100, 1.0)
+# apply_forest(rf_model, train)
+#
+# p = plot(rf_model, ylim=[0,0.36])
 
 end # module Survival
