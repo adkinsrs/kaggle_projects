@@ -61,9 +61,9 @@ showln( by(full, [:Sex, :Title], nrow) )
 # Determine surnames from passenger names
 full[:Surname] = map(x -> split(x, r"[,.]")[1], full[:Name])
 
-# Probaby could have gotten the unique surnames a better way
+# Formerly used nrow(by(full, :Surname, nrow)) but discovered how to pool DataArrays into factors
 # Also didn't feel like looking up how to embed HTML tags, like the example
-println(@sprintf("\nWe have %d unique surnames.", nrow(by(full, :Surname, nrow)) ))
+println(@sprintf("\nWe have %d unique surnames.", length(levels(pool(full[:Surname]))) ))
 
 ###
 # Feature Engineering - Does family size correlate with survival?
@@ -84,6 +84,7 @@ xticks!(collect(1:11))
 yaxis!("Count")
 title!("Survival by Family Size")
 #gui()
+# NOTE: I comment out the gui() command for working plots, so I don't have to see them when testing later plots
 
 # Categgorize family sizes (1, 2-4, 5+)
 full[:FsizeD] = map(x ->
@@ -135,6 +136,7 @@ println(@sprintf("We will infer their values for **embarkment** based on present
 
 # Create dataframe of only the passengers with embark information
 # Personal note... the 'find' command is collecting indexes from rows where isna() returned 0
+# Personal note... also could have used full[complete_cases(full[:,[:Embarked]]), :]
 embarked = full[find(!isna(full[:,:Embarked])), :]
 # Tutorial doesn't do this but one "Fare" is missing, and Julia doesn't like to plot with NA columns
 embarked = embarked[find(!isna(embarked[:,:Fare])), :]
@@ -152,32 +154,75 @@ full[ [62,830], :Embarked ] = "C";
 
 # Fix the null Fare value for this passenger (was eliminated from "embarked" subset)
 showln(full[1044,:])
-#Remove our NA fare passenger in this subset
-fare = full[find(!isna(full[:,:Fare])), :]
+#Remove our NA fare passenger in this subset    (next 2 lines do the same thing)
+#fare = full[find(!isna(full[:,:Fare])), :]
+fare = full[complete_cases( full[:, [:Fare]] ), :]
+
 S_3_fare = fare[ (fare[:Pclass] .== 3) & (fare[:Embarked] .== "S"), :]
 # NOTE - Adding "." in front of the comparison operator allows for element-wise comparisons in arrays
 # Also, one must use "&" instead of "&&" to combine conditions
 
 # Density plot showing the fare for all 3rd class passengers boarding from Southampton
-p3 = density(S_3_fare, :Fare, fc=:blue, fa=0.4, label="")
+p3 = density(S_3_fare, :Fare, fill=(0, 0.4, colorant"#99d6ff"), label="")
 vline!([median(S_3_fare[:Fare])], ls=:dash, lc=:red, lw=1, label="")
 xaxis!(x -> @sprintf("\$%d",x))
+#gui()
+
+# Set passenger 1044's fare equal to the median of the Southampton 3rd class fares ($8.05)
+full[ 1044, :Fare ] = median(S_3_fare[:Fare])
+
+###
+# Missingness - Predicting missing age values based on a model
+###
+
+println( @sprintf("Number of missing age values is %d", length(find(isna( full[:Age] )))) )
+
+# Turn these dataframe columns into factors
+pool!(full, [:PassengerId, :Pclass, :Sex, :Embarked, :Title, :Surname, :Family, :FsizeD])
+
+# I can't really find a Julia package related to rpart or mice.  I'm not a stats guy but there probably is one.
+srand(129)
+
+# Create an array of valid passenger ages
+age_only = full[complete_cases( full[:, [:Age] ] ), :Age]
+# Create a histogram of passenger age distribution
+p4 = histogram(age_only, normalize=true, bins=16, fc=:darkgreen, ylims=(0,0.04), xticks=0:20:80)
+histogram!(title="Age: Original Data", legend=:none, xlabel="Age", ylabel="Density")
+#gui()
+
+# Since I can't do regression yet, I can't show the mice graph, and thus apply output to Age column
+# ... but I'll just fill in the NA ages with random ages from age_only for now just to have something
+
+for row in 1:nrow(full)
+    temp = full[row, :Age]
+    if isna(temp)
+        full[row,:Age] = rand(minimum(age_only):maximum(age_only))
+    end
+end
+
+# Using the original training rows
+# R breaks the subplots by sex in the plot code, but I have to split in advance
+train = full[1:891,:]
+male_full = train[train[:Sex] .== "male", :]
+female_full = train[train[:Sex] .== "female", :]
+
+# Two histograms showing male and female age and survivorship.
+# I can't seem to split both datasets into seperate series from the same code line
+p5 = histogram(male_full, :Age, group=:Survived, layout=2)
+histogram!(female_full, :Age, group=:Survived, label="")
+plot!(c=[:red :blue], ylims=(0,70), xticks=0:20:80)
 gui()
 
-quit()
-
-
-### Skipping to section 4 ###
-
-
 ###
-# Prediction
+# Prediction - Split back into training and test datasets
 ###
 
-### Split back into training and test datasets
-# NOTE I never joined the datasets to begin with.  Eventually will edit code to do that.
+train = full[1:891,:]
+test = full[892:1309,:]
 
-### Building the RandomForests model
+###
+# Prediction - Building the RandomForests model
+###
 
 #Survival is our factor
 # labels = convert(Array, train[:, :Survived])
