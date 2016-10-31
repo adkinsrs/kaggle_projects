@@ -211,7 +211,34 @@ female_full = train[train[:Sex] .== "female", :]
 p5 = histogram(male_full, :Age, group=:Survived, layout=2)
 histogram!(female_full, :Age, group=:Survived, label="")
 plot!(c=[:red :blue], ylims=(0,70), xticks=0:20:80)
-gui()
+#gui()
+
+# Categorize passengers as either children or adults
+full[:Child] = map(x ->
+    if x < 18
+        "Child"
+    else
+        "Adult"
+    end
+    , full[:Age])
+
+showln(by(full, [:Child, :Survived], nrow))
+
+# Categorizing mothers now
+full[:Mother] = "Not Mother"
+for row in 1:nrow(full)
+    if (full[row, :Sex] == "female"
+        && full[row, :Parch] > 0
+        && full[row, :Age] > 18
+        && full[row, :Title] != "Miss")
+        full[row, :Mother] = "Mother"
+    end
+end
+
+showln(by(full, [:Mother, :Survived], nrow))
+
+# Categorize child and mother fields
+pool!(full, [:Child, :Mother])
 
 ###
 # Prediction - Split back into training and test datasets
@@ -224,14 +251,30 @@ test = full[892:1309,:]
 # Prediction - Building the RandomForests model
 ###
 
+# Random seed
+srand(754)
+
 #Survival is our factor
-# labels = convert(Array, train[:, :Survived])
-# # These others are features we want to compare against (leaving out Child and Mother for now)
-# features = convert(Array, train[:, [:Pclass, :Sex, :Age, :SibSp, :Parch, :Fare, :Embarked, :Title, :FsizeD] ])
-# # Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
-# rf_model = build_forest(labels, features, 3, 100, 1.0)
-# apply_forest(rf_model, train)
-#
-# p = plot(rf_model, ylim=[0,0.36])
+labels = convert(Array, train[:, :Survived])
+# These others are features we want to compare against (leaving out Child and Mother for now)
+features = convert(Array, train[:, [:Pclass, :Sex, :Age, :SibSp, :Parch, :Fare, :Embarked, :Title, :FsizeD, :Child, :Mother] ])
+test_features = convert(Array, test[:, [:Pclass, :Sex, :Age, :SibSp, :Parch, :Fare, :Embarked, :Title, :FsizeD, :Child, :Mother] ])
+# Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
+rf_model = build_forest(labels, features, 3, 100, 1.0)
+
+###
+# Prediction - Ranking variable importance
+###
+
+###
+# Prediction - Time for the actual Prediction
+###
+
+# Apply our random forest model on the test dataset
+prediction = apply_forest(rf_model, test_features)
+# Create the solution dataframe that will be submitted
+solution = DataFrame(PassengerId = test[:PassengerId], Survived = prediction)
+writetable("titanic_rf_mod.csv", solution, header=false)
+
 
 end # module Survival
