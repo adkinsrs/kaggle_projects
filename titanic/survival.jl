@@ -274,7 +274,7 @@ rf_model = build_forest(labels, features, 3, 100, 1.0)
 prediction = apply_forest(rf_model, test_features)
 # Create the solution dataframe that will be submitted
 solution = DataFrame(PassengerId = test[:PassengerId], Survived = prediction)
-writetable("titanic_rf_mod.csv", solution, header=false)
+writetable("titanic_rf_mod.csv", solution, header=true)
 
 
 end # module Survival
