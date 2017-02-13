@@ -15,8 +15,12 @@ slotw = readtable("./input/TourneySlots.csv")
 
 # Things to consider:
 ### 1) Do regular season statistics correlations predict victories?
+##### 1a) One caveat is we do not know quality of play (major vs mid-major conference)
 ### 2) Do these translate to similar predictions in the tournament?
 ### 3) Establish an ELO ranking system potentially
+##### 3a) Use end of season tournament seeds (seed #s 1-10) to assign early ELO to next season.  
+#####     Start at 1600 for 1-seed, decrement by 10 per seed increase, everyone else is 1500
+##### 3b) Get stats-per-game for each team in that season, and use correlation and ELO to assign probability
 
 println("Columns in the seasons_stats (detailed) dataset:")
 showcols(season_stats)
