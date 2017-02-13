@@ -16,6 +16,7 @@ slotw = readtable("./input/TourneySlots.csv")
 # Things to consider:
 ### 1) Do regular season statistics correlations predict victories?
 ### 2) Do these translate to similar predictions in the tournament?
+### 3) Establish an ELO ranking system potentially
 
 println("Columns in the seasons_stats (detailed) dataset:")
 showcols(season_stats)
