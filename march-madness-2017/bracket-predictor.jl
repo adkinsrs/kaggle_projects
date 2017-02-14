@@ -39,15 +39,26 @@ println(@sprintf("\nNumber of rows: %d\n", nrow(season_stats)))
 # I'm not keeping score because the winning team will always have a better score
 
 # First get stats of winning team
-winning_stats = by(BracketPredictor.season_stats, [:Season, :Wteam],
-    df -> DataFrame( colwise(mean, df[ 9:21 ]) ))
+winning_stats = by(season_stats, [:Season, :Wteam],
+    df -> DataFrame( nrow, colwise(mean, df[ 9:21 ]) ))
 
 # Next get stats of the losing team
-losing_stats = by(BracketPredictor.season_stats, [:Season, :Lteam],
-    df -> DataFrame( colwise(mean, df[ 22:34 ]) ))
+losing_stats = by(season_stats, [:Season, :Lteam],
+    df -> DataFrame( nrow, colwise(mean, df[ 22:34 ]) ))
+
+# Renaming columns to allow for vcat to join properly
+names!(winning_stats, [:Season, :Team, :Count, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+  :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
+names!(losing_stats, [:Season, :Team, :Count, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
 
 # Each team's seasonal statistics should be here now.
 team_stats_by_season = vcat(winning_stats, losing_stats)
-showln(losing_stats)
+showln(team_stats_by_season)
 
+#TODO: When calculating this mean, put more weight on the larger of wins/losses
+team_stats_by_season = by(team_stats_by_season, [:Season, :Team],
+    df -> DataFrame( colwise(mean, df[ 4:16 ]) ))
+names!((team_stats_by_season, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+        :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
 end # module BracketPredictor
