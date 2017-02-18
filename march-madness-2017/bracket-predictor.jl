@@ -39,26 +39,64 @@ println(@sprintf("\nNumber of rows: %d\n", nrow(season_stats)))
 # I'm not keeping score because the winning team will always have a better score
 
 # First get stats of winning team
+team_wins = by(season_stats, [:Season, :Wteam], nrow)
 winning_stats = by(season_stats, [:Season, :Wteam],
-    df -> DataFrame( nrow, colwise(mean, df[ 9:21 ]) ))
+    df -> DataFrame( colwise(mean, df[ 9:21 ]) ))
 
 # Next get stats of the losing team
+team_losses = by(season_stats, [:Season, :Lteam], nrow)
 losing_stats = by(season_stats, [:Season, :Lteam],
-    df -> DataFrame( nrow, colwise(mean, df[ 22:34 ]) ))
+    df -> DataFrame( colwise(mean, df[ 22:34 ]) ))
 
 # Renaming columns to allow for vcat to join properly
-names!(winning_stats, [:Season, :Team, :Count, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+names!(winning_stats, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
   :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
-names!(losing_stats, [:Season, :Team, :Count, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+names!(losing_stats, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
     :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
 
+# Multiply stats by wins/losses to give them weight for total averages
+# NOTE: I tried to do a one-liner for this (I'm a Perl guy), but my inexperience with Julia prevented this
+nrows, ncols = size(winning_stats)
+for row in 1:nrows
+  for col in 3:ncols
+    winning_stats[row,col] *= team_wins[row, 3]
+  end
+end
+
+nrows, ncols = size(losing_stats)
+for row in 1:nrows
+  for col in 3:ncols
+    losing_stats[row,col] *= team_losses[row, 3]
+  end
+end
+
+# Let's get the total sum of games played per team per season
+rename!(team_wins, :Wteam, :Team)
+rename!(team_losses, :Lteam, :Team)
+total_team_games = join(team_wins, team_losses, on=[:Season, :Team], kind=:outer)
+rename!(total_team_games, :x1, :Wins)
+rename!(total_team_games, :x1_1, :Losses)
+
+# Teams with no losses or no wins have NA for those values.  Need to replace with 0
+total_team_games[:Wins] = map(x -> if isna(x) 0 else x end, total_team_games[:Wins])
+total_team_games[:Losses] = map(x -> if isna(x) 0 else x end, total_team_games[:Losses])
+total_team_games[:TotalGames] = total_team_games[:Wins] .+ total_team_games[:Losses]
+sort!(total_team_games, cols=[order(:Season), order(:Team)])
+#showln(total_team_games)
+
 # Each team's seasonal statistics should be here now.
-team_stats_by_season = vcat(winning_stats, losing_stats)
+temp_comb_stats = vcat(winning_stats, losing_stats)
+team_stats_by_season = aggregate(temp_comb_stats, [:Season, :Team], sum)
+
+nrows, ncols = size(team_stats_by_season)
+for row in 1:nrows
+  for col in 3:ncols
+    team_stats_by_season[row,col] = team_stats_by_season[row,col] / total_team_games[row,:TotalGames]
+  end
+end
+names!(team_stats_by_season, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
 showln(team_stats_by_season)
 
-#TODO: When calculating this mean, put more weight on the larger of wins/losses
-team_stats_by_season = by(team_stats_by_season, [:Season, :Team],
-    df -> DataFrame( colwise(mean, df[ 4:16 ]) ))
-names!((team_stats_by_season, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
-        :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
+
 end # module BracketPredictor
