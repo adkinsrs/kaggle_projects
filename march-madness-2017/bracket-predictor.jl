@@ -21,7 +21,7 @@ tourney_stats = DataFrame(tourney_stats)
 seeds = DataFrame(seeds)
 slots = DataFrame(slots)
 
-# Things to consider:
+# Things to consider (scratchpad):
 ### 1) Do regular season statistics correlations predict victories?
 ##### 1a) One caveat is we do not know quality of play (major vs mid-major conference)
 ### 2) Do these translate to similar predictions in the tournament?
@@ -29,6 +29,8 @@ slots = DataFrame(slots)
 ##### 3a) Use end of season tournament seeds (seed #s 1-10) to assign early ELO to next season.
 #####     Start at 1600 for 1-seed, decrement by 10 per seed increase, everyone else is 1500
 ##### 3b) Get stats-per-game for each team in that season, and use correlation and ELO to assign probability
+
+### Creating a table of average stats per team per season ###
 
 # Let's make sure I imported my data correctly
 println("Columns in the seasons_stats (detailed) dataset:")
@@ -88,15 +90,37 @@ sort!(total_team_games, cols=[order(:Season), order(:Team)])
 temp_comb_stats = vcat(winning_stats, losing_stats)
 team_stats_by_season = aggregate(temp_comb_stats, [:Season, :Team], sum)
 
+#Divide total stats by total games to get average
 nrows, ncols = size(team_stats_by_season)
 for row in 1:nrows
   for col in 3:ncols
-    team_stats_by_season[row,col] = team_stats_by_season[row,col] / total_team_games[row,:TotalGames]
+    team_stats_by_season[row,col] /= total_team_games[row,:TotalGames]
   end
 end
 names!(team_stats_by_season, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
     :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
 showln(team_stats_by_season)
 
+### Creating a Training Set ###
+
+# Now that I have average stats per team per season, I would like to convert the
+# original season data into a training data set
+season_training_data = DataFrame(Season = Array{String}[], Team = Array{String}[], FGM = Array{Int}[],
+  FGA = Array{Int}[], FGM3 = Array{Int}[], FGA3 = Array{Int}[], FTM = Array{Int}[], FTA = Array{Int}[],
+  OffR = Array{Int}[], DefR = Array{Int}[], Assist = Array{Int}[], TO = Array{Int}[],
+  Steal = Array{Int}[], Block = Array{Int}[], PF = Array{Int}[], Win = Array{Int8}[])
+
+for row in 1:nrow(season_stats)
+    # Get winning team data by game
+    arr = array( season_stats[row,[1,3, 9,10,11,12,13,14,15,16,17,18,19,20,21]] )
+    showln(arr)
+    push!(arr, 1)
+    push!( season_training_data, @data(arr) )
+    # Get losing team data by game
+    arr = array( season_stats[row,[1,4, 22,23,24,25,26,27,28,29,30,31,32,33,34]] )
+    push!(arr, 0)
+    push!( season_training_data, @data(arr) )
+end
+showln(season_training_data)
 
 end # module BracketPredictor
