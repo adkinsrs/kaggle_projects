@@ -3,6 +3,7 @@
 module BracketPredictor
 
 using DataFrames
+using DecisionTree
 
 cd("/home/shaun/git/kaggle_projects/march-madness-2017/")
 
@@ -105,22 +106,70 @@ showln(team_stats_by_season)
 
 # Now that I have average stats per team per season, I would like to convert the
 # original season data into a training data set
-season_training_data = DataFrame(Season = Array{String}[], Team = Array{String}[], FGM = Array{Int}[],
-  FGA = Array{Int}[], FGM3 = Array{Int}[], FGA3 = Array{Int}[], FTM = Array{Int}[], FTA = Array{Int}[],
-  OffR = Array{Int}[], DefR = Array{Int}[], Assist = Array{Int}[], TO = Array{Int}[],
-  Steal = Array{Int}[], Block = Array{Int}[], PF = Array{Int}[], Win = Array{Int8}[])
 
-for row in 1:nrow(season_stats)
-    # Get winning team data by game
-    arr = array( season_stats[row,[1,3, 9,10,11,12,13,14,15,16,17,18,19,20,21]] )
-    showln(arr)
-    push!(arr, 1)
-    push!( season_training_data, @data(arr) )
-    # Get losing team data by game
-    arr = array( season_stats[row,[1,4, 22,23,24,25,26,27,28,29,30,31,32,33,34]] )
-    push!(arr, 0)
-    push!( season_training_data, @data(arr) )
-end
+# Couldn't figure out a shorthand way to do this so here's the long way.
+# Lets get the winning team's data in first
+season_training_data = DataFrame()
+season_training_data[:Season] = season_stats[:Season]
+season_training_data[:Team] = season_stats[:Wteam]
+season_training_data[:FGM] = season_stats[9]
+season_training_data[:FGA] = season_stats[10]
+season_training_data[:FGM3] = season_stats[11]
+season_training_data[:FGA3] = season_stats[12]
+season_training_data[:FTM] = season_stats[13]
+season_training_data[:FTA] = season_stats[14]
+season_training_data[:OffR] = season_stats[15]
+season_training_data[:DefR] = season_stats[16]
+season_training_data[:Assist] = season_stats[17]
+season_training_data[:TO] = season_stats[18]
+season_training_data[:Steal] = season_stats[19]
+season_training_data[:Block] = season_stats[20]
+season_training_data[:PF] = season_stats[21]
+season_training_data[:Win] = map(x -> x=1, season_training_data[:Season])
+
+# For the losing team's data I will create a separate DataFrame
+temp_df = DataFrame()
+temp_df[:Season] = season_stats[:Season]
+temp_df[:Team] = season_stats[:Lteam]
+temp_df[:FGM] = season_stats[22]
+temp_df[:FGA] = season_stats[23]
+temp_df[:FGM3] = season_stats[24]
+temp_df[:FGA3] = season_stats[25]
+temp_df[:FTM] = season_stats[26]
+temp_df[:FTA] = season_stats[27]
+temp_df[:OffR] = season_stats[28]
+temp_df[:DefR] = season_stats[29]
+temp_df[:Assist] = season_stats[30]
+temp_df[:TO] = season_stats[31]
+temp_df[:Steal] = season_stats[32]
+temp_df[:Block] = season_stats[33]
+temp_df[:PF] = season_stats[34]
+temp_df[:Win] = map(x -> x=0, temp_df[:Season])
+
+# Combine both dataframes
+season_training_data = vcat(season_training_data, temp_df)
 showln(season_training_data)
+
+# Take the converted training dataset and create a forest decision trees
+
+#Random seed
+srand(754)
+
+# Win/Loss is our factor
+labels = convert(Array, season_training_data[:, :Win])
+# These others are features we want to compare against (leaving out Child and Mother for now)
+features = convert(Array, season_training_data[:, [:FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF] ])
+test_features = convert(Array, season_training_data[:, [:FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF] ])
+# Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
+rf_model = build_forest(labels, features, 3, 100, 1.0)
+
+print_tree(rf_model, 2)
+# # Apply our random forest model on the test dataset
+# prediction = apply_forest(rf_model, test_features)
+# # Create the solution dataframe that will be submitted
+# solution = DataFrame(PassengerId = test[:PassengerId], Survived = prediction)
+# writetable("titanic_rf_mod.csv", solution, header=true)
 
 end # module BracketPredictor
