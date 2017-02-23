@@ -164,12 +164,10 @@ test_features = convert(Array, season_training_data[:, [:FGM, :FGA, :FGM3, :FGA3
     :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF] ])
 # Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
 rf_model = build_forest(labels, features, 3, 100, 1.0)
-
-print_tree(rf_model, 2)
-# # Apply our random forest model on the test dataset
-# prediction = apply_forest(rf_model, test_features)
-# # Create the solution dataframe that will be submitted
-# solution = DataFrame(PassengerId = test[:PassengerId], Survived = prediction)
-# writetable("titanic_rf_mod.csv", solution, header=true)
+win_prediction = apply_forest(rf_model, team_stats_by_season)
+win_probability = apply_forest_proba(rf_model, team_stats_by_season, [1,0])
+head(win_probability)
+team_win_prediction = DataFrame(Season = team_stats_by_season[:Season], Team = team_stats_by_season[:Team], Win = win_prediction)
+showln(team_win_prediction)
 
 end # module BracketPredictor
