@@ -1,5 +1,4 @@
 # My attempt to model the March Madness brackets based on the past 4 seasons, and apply it to predicting the 2017 tournament
-
 using DataFrames
 using DecisionTree
 
@@ -216,19 +215,24 @@ team_win_probability = DataFrame(Season = team_stats_by_season[:Season],
 
 # Time to read in the sample submission CSV and make our own
 sample = readtable("./input/sample_submission.csv")
-showcols(team_win_probability)
 for row in 1:nrow(sample)
+    # Split out season, team1, and team2
     id = split(sample[row, :id], "_")
-    println(id[1])
-    println(typeof(id[1]))
-    team1_win = team_win_probability[ team_win_probability[:Season] .== id[1], :]
-    team2_win = team_win_probability[ (team_win_probability[:Season] .== id[1]), :]
-    showln(team1_win)
+    # Convert SubStrings to Int
+    season = parse(Int, id[1])
+    team1 = parse(Int, id[2])
+    team2 = parse(Int, id[3])
+    # Grab the win probability for each team
+    team1_win = team_win_probability[ (team_win_probability[:Season] .== season) & (team_win_probability[:Team] .== team1), :Win]
+    team2_win = team_win_probability[ (team_win_probability[:Season] .== season) & (team_win_probability[:Team] .== team2), :Win]
+    team1_win = team1_win[1,1]
+    team2_win = team2_win[1,1]
+    #showln(team1_win)
     #showln(team2_win)
     probability = team1_win / (team1_win + team2_win)
-    sample[:pred] = probability
+    sample[row, :pred] = probability
 end
 
 # Write results to csv, and call it a day
 #showln(sample)
-#writetable("submission_rf.csv", sample)
+writetable("submission_rf.csv", sample)
