@@ -19,8 +19,10 @@ tourney_stats = readtable("./input/TourneyDetailedResults.csv")
 ### 2) Do these translate to similar predictions in the tournament?
 ### 3) Establish an ELO ranking system potentially
 ##### 3a) Use end of season tournament seeds (seed #s 1-10) to assign early ELO to next season.
-#####     Start at 1600 for 1-seed, decrement by 10 per seed increase, everyone else is 1500
+#####     Start at 1600 for 1-seed, decrement by 10 per seed increase, everyone else is at end-of-season value
 ##### 3b) Get stats-per-game for each team in that season, and use correlation and ELO to assign probability
+### 4) Create ratios (Assist-to-turnover, FG%, etc.)
+### 5) Get opponent statistics per team (FG% defense, forced turnovers, etc.)
 
 ### Creating a table of average stats per team per season ###
 
@@ -32,20 +34,33 @@ tourney_stats = readtable("./input/TourneyDetailedResults.csv")
 # Create a DataFrame listing each team's season averages by season
 # I'm not keeping score because the winning team will always have a better score
 
+season_stats[:FG_pct] = season_stats[9] / season_stats[10]
+season_stats[:oFG_pct] = season_stats[22] / season_stats[23]
+season_stats[:FG3_pct] = season_stats[11] / season_stats[12]
+season_stats[:oFG3_pct] = season_stats[24] / season_stats[25]
+season_stats[:FT_pct] = season_stats[13] / season_stats[14]
+season_stats[:oFT_pct] = season_stats[26] / season_stats[27]
+season_stats[:Tot_Reb] = season_stats[15] / season_stats[16]
+season_stats[:oTot_Reb] = season_stats[28] / season_stats[29]
+season_stats[:Ast_TO_ratio] = season_stats[17] / season_stats[18]
+season_stats[:oAst_TO_ratio] = season_stats[30] / season_stats[31]
+
 # First get stats of winning team
 team_wins = by(season_stats, [:Season, :Wteam], nrow)
 winning_stats = by(season_stats, [:Season, :Wteam],
-    df -> DataFrame( colwise(mean, df[ 9:21 ]) ))
+    df -> DataFrame( colwise(mean, df[ 9:34 ]) ))
 
 # Next get stats of the losing team
 team_losses = by(season_stats, [:Season, :Lteam], nrow)
 losing_stats = by(season_stats, [:Season, :Lteam],
-    df -> DataFrame( colwise(mean, df[ 22:34 ]) ))
+    df -> DataFrame( colwise(mean, df[ 9:34 ]) ))
 
 # Renaming columns to allow for vcat to join properly
 names!(winning_stats, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
-  :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
-names!(losing_stats, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+  :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF, :oFGM, :oFGA, :oFGM3, :oFGA3, :oFTM, :oFTA,
+    :oOffR, :oDefR, :oAssist, :oTO, :oSteal, :oBlock, :oPF])
+names!(losing_stats, [:Season, :Team, :oFGM, :oFGA, :oFGM3, :oFGA3, :oFTM, :oFTA,
+  :oOffR, :oDefR, :oAssist, :oTO, :oSteal, :oBlock, :oPF, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
     :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
 
 # Multiply stats by wins/losses to give them weight for total averages
