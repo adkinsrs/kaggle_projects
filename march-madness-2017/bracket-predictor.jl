@@ -190,8 +190,11 @@ for row in 1:nrow(sample)
     #showln(team2_win)
     probability = team1_win - team2_win + 0.5
     # Set upper and lower bounds
-    probability = 0 if probability < 0
-    probability = 1 if probability > 1
+    if probability < 0
+        probability = 0
+    else if probability < 1
+        probability = 1
+    end
     sample[row, :pred] = probability
 end
 
