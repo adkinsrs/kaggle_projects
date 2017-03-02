@@ -2,17 +2,6 @@
 using DataFrames
 using DecisionTree
 
-# cd("/home/shaun/git/kaggle_projects/march-madness-2017/")
-
-showln(x) = (show(x); println())    # Quick function to show variable on its own line
-
-# Load in the team IDs
-teams = readtable("./input/Teams.csv")
-season_stats = readtable("./input/RegularSeasonDetailedResults.csv")
-tourney_stats = readtable("./input/TourneyDetailedResults.csv")
-# seeds = readtable("./input/TourneySeeds.csv")
-# slots = readtable("./input/TourneySlots.csv")
-
 # Things to consider (scratchpad):
 ### 1) Do regular season statistics correlations predict victories?
 ##### 1a) One caveat is we do not know quality of play (major vs mid-major conference)
@@ -24,6 +13,17 @@ tourney_stats = readtable("./input/TourneyDetailedResults.csv")
 ### 4) Create ratios (Assist-to-turnover, FG%, etc.)
 ### 5) Get opponent statistics per team (FG% defense, forced turnovers, etc.)
 
+# cd("/home/shaun/git/kaggle_projects/march-madness-2017/")
+
+showln(x) = (show(x); println())    # Quick function to show variable on its own line
+
+# Load in the team IDs
+teams = readtable("./input/Teams.csv")
+season_stats = readtable("./input/RegularSeasonDetailedResults.csv")
+tourney_stats = readtable("./input/TourneyDetailedResults.csv")
+# seeds = readtable("./input/TourneySeeds.csv")
+# slots = readtable("./input/TourneySlots.csv")
+
 ### Creating a table of average stats per team per season ###
 
 # Let's make sure I imported my data correctly
@@ -32,18 +32,8 @@ tourney_stats = readtable("./input/TourneyDetailedResults.csv")
 # println(@sprintf("\nNumber of rows: %d\n", nrow(season_stats)))
 
 # Create a DataFrame listing each team's season averages by season
+# Also keep track of opponents season averages as well (FG defense, etc.)
 # I'm not keeping score because the winning team will always have a better score
-
-season_stats[:FG_pct] = season_stats[9] / season_stats[10]
-season_stats[:oFG_pct] = season_stats[22] / season_stats[23]
-season_stats[:FG3_pct] = season_stats[11] / season_stats[12]
-season_stats[:oFG3_pct] = season_stats[24] / season_stats[25]
-season_stats[:FT_pct] = season_stats[13] / season_stats[14]
-season_stats[:oFT_pct] = season_stats[26] / season_stats[27]
-season_stats[:Tot_Reb] = season_stats[15] / season_stats[16]
-season_stats[:oTot_Reb] = season_stats[28] / season_stats[29]
-season_stats[:Ast_TO_ratio] = season_stats[17] / season_stats[18]
-season_stats[:oAst_TO_ratio] = season_stats[30] / season_stats[31]
 
 # First get stats of winning team
 team_wins = by(season_stats, [:Season, :Wteam], nrow)
@@ -97,7 +87,7 @@ sort!(total_team_games, cols=[order(:Season), order(:Team)])
 temp_comb_stats = vcat(winning_stats, losing_stats)
 team_stats_by_season = aggregate(temp_comb_stats, [:Season, :Team], sum)
 
-#Divide total stats by total games to get average
+# Divide total stats by total games to get average
 nrows, ncols = size(team_stats_by_season)
 for row in 1:nrows
   for col in 3:ncols
@@ -105,123 +95,77 @@ for row in 1:nrows
   end
 end
 names!(team_stats_by_season, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
-    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF])
-# showln(team_stats_by_season)
+  :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF, :oFGM, :oFGA, :oFGM3, :oFGA3, :oFTM, :oFTA,
+  :oOffR, :oDefR, :oAssist, :oTO, :oSteal, :oBlock, :oPF])
+
+# Add some percentage information
+team_stats_by_season[:FG_pct] = map((x,y) -> x / y, team_stats_by_season[:FGM], team_stats_by_season[:FGA])
+team_stats_by_season[:oFG_pct] = map((x,y) -> x / y, team_stats_by_season[:oFGM], team_stats_by_season[:oFGA])
+team_stats_by_season[:FG3_pct] = map((x,y) -> x / y, team_stats_by_season[:FGM3], team_stats_by_season[:FGA3])
+team_stats_by_season[:oFG3_pct] = map((x,y) -> x / y, team_stats_by_season[:oFGM3], team_stats_by_season[:oFGA3])
+team_stats_by_season[:FT_pct] = map((x,y) -> x / y, team_stats_by_season[:FTM], team_stats_by_season[:FTA]) # no opponent data... can't influence that
+team_stats_by_season[:Tot_Reb] = map((x,y) -> x + y, team_stats_by_season[:OffR], team_stats_by_season[:DefR])
+team_stats_by_season[:oTot_Reb] = map((x,y) -> x + y, team_stats_by_season[:oOffR], team_stats_by_season[:oDefR])
+team_stats_by_season[:Ast_TO_ratio] = map((x,y) -> x / y, team_stats_by_season[:Assist], team_stats_by_season[:TO])
+team_stats_by_season[:oAst_TO_ratio] = map((x,y) -> x / y, team_stats_by_season[:oAssist], team_stats_by_season[:TO])
+
+#showln(team_stats_by_season)
 
 ### Creating a Training Set ###
-
-# Now that I have average stats per team per season, I would like to convert the
-# original season data into a training data set
-
-# Couldn't figure out a shorthand way to do this so here's the long way.
-# Lets get the winning team's data in first
-# season_training_data = DataFrame()
-# season_training_data[:Season] = season_stats[:Season]
-# season_training_data[:Team] = season_stats[:Wteam]
-# season_training_data[:FGM] = season_stats[9]
-# season_training_data[:FGA] = season_stats[10]
-# season_training_data[:FGM3] = season_stats[11]
-# season_training_data[:FGA3] = season_stats[12]
-# season_training_data[:FTM] = season_stats[13]
-# season_training_data[:FTA] = season_stats[14]
-# season_training_data[:OffR] = season_stats[15]
-# season_training_data[:DefR] = season_stats[16]
-# season_training_data[:Assist] = season_stats[17]
-# season_training_data[:TO] = season_stats[18]
-# season_training_data[:Steal] = season_stats[19]
-# season_training_data[:Block] = season_stats[20]
-# season_training_data[:PF] = season_stats[21]
-# season_training_data[:Win] = map(x -> x=1, season_training_data[:Season])
-#
-# # For the losing team's data I will create a separate DataFrame
-# temp_df = DataFrame()
-# temp_df[:Season] = season_stats[:Season]
-# temp_df[:Team] = season_stats[:Lteam]
-# temp_df[:FGM] = season_stats[22]
-# temp_df[:FGA] = season_stats[23]
-# temp_df[:FGM3] = season_stats[24]
-# temp_df[:FGA3] = season_stats[25]
-# temp_df[:FTM] = season_stats[26]
-# temp_df[:FTA] = season_stats[27]
-# temp_df[:OffR] = season_stats[28]
-# temp_df[:DefR] = season_stats[29]
-# temp_df[:Assist] = season_stats[30]
-# temp_df[:TO] = season_stats[31]
-# temp_df[:Steal] = season_stats[32]
-# temp_df[:Block] = season_stats[33]
-# temp_df[:PF] = season_stats[34]
-# temp_df[:Win] = map(x -> x=0, temp_df[:Season])
-#
-# # Combine both dataframes
-# season_training_data = vcat(season_training_data, temp_df)
-# showln(season_training_data)
-
-# # Win/Loss is our factor
-# labels = convert(Array, season_training_data[:, :Win])
-# # These others are features we want to compare against (leaving out Child and Mother for now)
-# features = convert(Array, season_training_data[:, [:FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
-#     :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF] ])
-# test_features = convert(Array, season_training_data[:, [:FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
-#     :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF] ])
-
 ### Lets create a training dataset with tournament stats (since it's a smaller dataset)
 
-tourney_training_data = DataFrame()
-tourney_training_data[:Season] = tourney_stats[:Season]
-tourney_training_data[:Team] = tourney_stats[:Wteam]
-tourney_training_data[:FGM] = tourney_stats[9]
-tourney_training_data[:FGA] = tourney_stats[10]
-tourney_training_data[:FGM3] = tourney_stats[11]
-tourney_training_data[:FGA3] = tourney_stats[12]
-tourney_training_data[:FTM] = tourney_stats[13]
-tourney_training_data[:FTA] = tourney_stats[14]
-tourney_training_data[:OffR] = tourney_stats[15]
-tourney_training_data[:DefR] = tourney_stats[16]
-tourney_training_data[:Assist] = tourney_stats[17]
-tourney_training_data[:TO] = tourney_stats[18]
-tourney_training_data[:Steal] = tourney_stats[19]
-tourney_training_data[:Block] = tourney_stats[20]
-tourney_training_data[:PF] = tourney_stats[21]
-tourney_training_data[:Win] = map(x -> x=1, tourney_training_data[:Season])
+winning_tourney_stats = by(tourney_stats, [:Season, :Wteam],
+    df -> DataFrame( colwise(mean, df[ 9:34 ]) ))
+winning_tourney_stats[:Win] = map(x -> x=1, winning_tourney_stats[:Season])
 
 # For the losing team's data I will create a separate DataFrame
-temp_df = DataFrame()
-temp_df[:Season] = tourney_stats[:Season]
-temp_df[:Team] = tourney_stats[:Lteam]
-temp_df[:FGM] = tourney_stats[22]
-temp_df[:FGA] = tourney_stats[23]
-temp_df[:FGM3] = tourney_stats[24]
-temp_df[:FGA3] = tourney_stats[25]
-temp_df[:FTM] = tourney_stats[26]
-temp_df[:FTA] = tourney_stats[27]
-temp_df[:OffR] = tourney_stats[28]
-temp_df[:DefR] = tourney_stats[29]
-temp_df[:Assist] = tourney_stats[30]
-temp_df[:TO] = tourney_stats[31]
-temp_df[:Steal] = tourney_stats[32]
-temp_df[:Block] = tourney_stats[33]
-temp_df[:PF] = tourney_stats[34]
-temp_df[:Win] = map(x -> x=0, temp_df[:Season])
+losing_tourney_stats = by(tourney_stats, [:Season, :Lteam],
+    df -> DataFrame( colwise(mean, df[ 9:34 ]) ))
+losing_tourney_stats[:Win] = map(x -> x=0, losing_tourney_stats[:Season])
+
+# Renaming columns to allow for vcat to join properly
+names!(winning_tourney_stats, [:Season, :Team, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+  :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF, :oFGM, :oFGA, :oFGM3, :oFGA3, :oFTM, :oFTA,
+    :oOffR, :oDefR, :oAssist, :oTO, :oSteal, :oBlock, :oPF, :Win])
+names!(losing_tourney_stats, [:Season, :Team, :oFGM, :oFGA, :oFGM3, :oFGA3, :oFTM, :oFTA,
+  :oOffR, :oDefR, :oAssist, :oTO, :oSteal, :oBlock, :oPF, :FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
+    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF, :Win])
 
 # Combine both dataframes
-tourney_training_data = vcat(tourney_training_data, temp_df)
+tourney_training_data = vcat(winning_tourney_stats, losing_tourney_stats)
+
+# Add some percentage information
+tourney_training_data[:FG_pct] = map((x,y) -> x / y, tourney_training_data[:FGM], tourney_training_data[:FGA])
+tourney_training_data[:oFG_pct] = map((x,y) -> x / y, tourney_training_data[:oFGM], tourney_training_data[:oFGA])
+tourney_training_data[:FG3_pct] = map((x,y) -> x / y, tourney_training_data[:FGM3], tourney_training_data[:FGA3])
+tourney_training_data[:oFG3_pct] = map((x,y) -> x / y, tourney_training_data[:oFGM3], tourney_training_data[:oFGA3])
+tourney_training_data[:FT_pct] = map((x,y) -> x / y, tourney_training_data[:FTM], tourney_training_data[:FTA]) # no opponent data... can't influence that
+tourney_training_data[:Tot_Reb] = map((x,y) -> x + y, tourney_training_data[:OffR], tourney_training_data[:DefR])
+tourney_training_data[:oTot_Reb] = map((x,y) -> x + y, tourney_training_data[:oOffR], tourney_training_data[:oDefR])
+tourney_training_data[:Ast_TO_ratio] = map((x,y) -> x / y, tourney_training_data[:Assist], tourney_training_data[:TO])
+tourney_training_data[:oAst_TO_ratio] = map((x,y) -> x / y, tourney_training_data[:oAssist], tourney_training_data[:TO])
 # showln(tourney_training_data)
 
-# Take the converted training dataset and create a forest decision trees
+### Create a forest decision tree ###
 
 #Random seed
 srand(754)
 
+# Some stats that I will leave out for consideration of a team's chances of winning:
+### FGA, FGA3, FTA - More attempts lead to more scores but percentage stats accounts for this
+### oFGA, oFGA3 - same reason as above
+### oFTM, oFTA - cannot directly influence opponent's chances of making free throws (outside of crowd tauntings)
+### Assist, oAssist - Assists only count due to a score, so use FGM.  Will use in Assist/TO ratio though
+### Steal, oSteal - Steals always count as a turnover so use TO.
+
 # Win/Loss is our factor
 labels = convert(Array, tourney_training_data[:, :Win])
 # Training data will be based on tournament games
-features = convert(Array, tourney_training_data[:, [:FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
-    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF] ])
+features = convert(Array, tourney_training_data[:, [:FGM, :FGM3, :FTM, :OffR, :DefR, :TO, :Block, :PF, :oFGM, :oFGM3, :oOffR, :oDefR, :oTO, :oBlock, :oPF, :FG_pct, :oFG_pct, :FG3_pct, :oFG3_pct, :Tot_Reb, :oTot_Reb, :Ast_TO_ratio, :oAst_TO_ratio] ])
 # Test data will be based on season averages
-test_features = convert(Array, team_stats_by_season[:, [:FGM, :FGA, :FGM3, :FGA3, :FTM, :FTA,
-    :OffR, :DefR, :Assist, :TO, :Steal, :Block, :PF] ])
-# Build the model, using 3 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
-rf_model = build_forest(labels, features, 3, 100, 1.0)
+test_features = convert(Array, team_stats_by_season[:, [:FGM, :FGM3, :FTM, :OffR, :DefR, :TO, :Block, :PF, :oFGM, :oFGM3, :oOffR, :oDefR, :oTO, :oBlock, :oPF, :FG_pct, :oFG_pct, :FG3_pct, :oFG3_pct, :Tot_Reb, :oTot_Reb, :Ast_TO_ratio, :oAst_TO_ratio] ])
+# Build the model, using 4 features per split (sqrt of total features), 100 trees, and 1.0 subsampling ratio
+rf_model = build_forest(labels, features, 4, 100, 1.0)
 # This applies the probability of winning a random game
 win_probability = apply_forest_proba(rf_model, test_features, [1,0])
 team_win_probability = DataFrame(Season = team_stats_by_season[:Season],
@@ -244,7 +188,10 @@ for row in 1:nrow(sample)
     team2_win = team2_win[1,1]
     #showln(team1_win)
     #showln(team2_win)
-    probability = team1_win / (team1_win + team2_win)
+    probability = team1_win - team2_win + 0.5
+    # Set upper and lower bounds
+    probability = 0 if probability < 0
+    probability = 1 if probability > 1
     sample[row, :pred] = probability
 end
 
