@@ -192,7 +192,7 @@ for row in 1:nrow(sample)
     # Set upper and lower bounds
     if probability < 0
         probability = 0
-    elseif probability < 1
+    elseif probability > 1
         probability = 1
     end
     sample[row, :pred] = probability
