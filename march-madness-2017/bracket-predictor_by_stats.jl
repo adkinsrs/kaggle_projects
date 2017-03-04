@@ -17,19 +17,10 @@ using DecisionTree
 
 showln(x) = (show(x); println())    # Quick function to show variable on its own line
 
-# Load in the team IDs
-teams = readtable("./input/Teams.csv")
 season_stats = readtable("./input/RegularSeasonDetailedResults.csv")
 tourney_stats = readtable("./input/TourneyDetailedResults.csv")
-# seeds = readtable("./input/TourneySeeds.csv")
-# slots = readtable("./input/TourneySlots.csv")
 
 ### Creating a table of average stats per team per season ###
-
-# Let's make sure I imported my data correctly
-# println("Columns in the seasons_stats (detailed) dataset:")
-# showcols(season_stats)
-# println(@sprintf("\nNumber of rows: %d\n", nrow(season_stats)))
 
 # Create a DataFrame listing each team's season averages by season
 # Also keep track of opponents season averages as well (FG defense, etc.)
