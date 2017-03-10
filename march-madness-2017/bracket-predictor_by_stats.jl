@@ -1,3 +1,5 @@
+#!/usr/bin/env julia
+
 # My attempt to model the March Madness brackets based on the past 4 seasons, and apply it to predicting the 2017 tournament
 using DataFrames
 using DecisionTree

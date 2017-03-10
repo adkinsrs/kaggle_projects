@@ -1,3 +1,5 @@
+#!/usr/bin/env Julia
+
 # This script will take the submission data from bracket-predictor-by-stats.jl and will use ELO to influence the win probabilities even more
 
 # I would love to track daily ELO change, but for the purposes of this, I want to keep track of ELO up until tournament time.
@@ -94,10 +96,9 @@ function save_tourney_seeds_ELO(tourney_seeds, teams, year)
     return tourney_seeds
 end
 
-# Adjust the probabilites set in the current submission file
-function adjust_submission_probs(tourney_seeds, teams, submission)
+# Calculate the probabilites to write in the current submission file
+function calc_submission_probs(tourney_seeds, teams, submission)
     for row in 1:nrow(submission)
-        curr_pred = submission[row,:pred]
         # Split out season, team1, and team2
         id = split(submission[row, :id], "_")
         # Convert SubStrings to Int
@@ -110,9 +111,6 @@ function adjust_submission_probs(tourney_seeds, teams, submission)
         team2_elo = tourney_seeds[ (tourney_seeds[:Season] .== season) & (tourney_seeds[:Team] .== team2), :ELO][1,1]
 
         probability = team1_elo / (team1_elo + team2_elo)
-        # Average the ELO prediction and random forest predictions together
-        probability = mean([curr_pred, probability])
-
         submission[row, :pred] = probability
     end
     return submission
@@ -167,7 +165,7 @@ function main()
         teams = update_end_of_season(teams)
     end
 
-    submission = adjust_submission_probs(tourney_seeds, teams, submission)
+    submission = calc_submission_probs(tourney_seeds, teams, submission)
     # Write results to csv, and call it a day
     writetable("submission_using_elo.csv", submission)
 end
