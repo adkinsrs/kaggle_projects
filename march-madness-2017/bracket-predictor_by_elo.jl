@@ -7,7 +7,7 @@ using DataFrames
 ### Constants ###
 mean_elo = 1500
 elo_width = 400
-k_factor = 32
+k_factor = 64
 
 showln(x) = (show(x); println())    # Quick function to show variable on its own line
 
