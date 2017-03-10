@@ -9,6 +9,8 @@ mean_elo = 1500
 elo_width = 400
 k_factor = 32
 
+showln(x) = (show(x); println())    # Quick function to show variable on its own line
+
 # So I have a proposal to jump-start ELO variance
 # ELO at the start of a season will be influenced by seeding in the tournament
 # Only the beat 10 seeds (40 teams) will get the boost
@@ -16,60 +18,65 @@ k_factor = 32
 function increase_ELO_for_seeds(teams, initial_seeds)
     top_elo = 1600
 
-    for r in nrow(initial_seeds)
+    for r in 1:nrow(initial_seeds)
         seed = initial_seeds[r, :Seed]
-        seed = seed[ match(seed, r"\d+") ]  # Get the seed digit
-        seed = parse(Int, seed)
-        team = initial_seeds[r, :Team]
+        seed = match(r"\d+", seed) # Get the seed digit
+        seed = parse(Int, seed.match)
 
+        team = initial_seeds[r, :Team]
         # Top seed gets ELO of 1600 to start.  Worse seeds get lower ELO scores in 10-pt decrements, down to 1510 for a 10-seed
         if seed <= 10
-            teams[ teams[:Team] == team], :ELO ] = top_elo - (seed-1 * 10)
+            teams[ teams[:Team_Id] .== team, :ELO ] = top_elo - ((seed-1) * 10)
         end
     end
+#showln(teams[ teams[:ELO] > 1500, :])
     return teams
 end
 
 # Stole function from
 # https://www.kaggle.com/kplauritzen/march-machine-learning-mania-2017/elo-ratings-in-python
-function update_elo(winner_elo, loser_elo):
+function update_elo(winner_elo, loser_elo)
     # https://en.wikipedia.org/wiki/Elo_rating_system#Mathematical_details
-
     expected_win = expected_result(winner_elo, loser_elo)
     change_in_elo = k_factor * (1-expected_win)
     winner_elo += change_in_elo
     loser_elo -= change_in_elo
+    #ELOs are now in Float, but I'd rather just keep them in Int
     return winner_elo, loser_elo
 end
 
 # Stole function from
 # https://www.kaggle.com/kplauritzen/march-machine-learning-mania-2017/elo-ratings-in-python
-function expected_result(elo_a, elo_b):
+function expected_result(elo_a, elo_b)
     # https://en.wikipedia.org/wiki/Elo_rating_system#Mathematical_details
 
-    expect_a = 1.0/(1+10**((elo_b - elo_a)/elo_width))
+    # Using 'div' instead of '/' to force Julia to return an Int instead of Float
+    expect_a = div(1, (1 + 10.0^ div(elo_b - elo_a, elo_width) ) )
     return expect_a
 end
 
 # Stole function from
 # https://www.kaggle.com/kplauritzen/march-machine-learning-mania-2017/elo-ratings-in-python
-function update_end_of_season(teams):
+function update_end_of_season(teams)
     #https://fivethirtyeight.com/datalab/nfl-elo-ratings-are-back/
-    teams[:ELO] = map(x -> x - ((x - mean_elo) / 3), teams[:ELO])
+
+    # Using 'div' instead of '/' to force Julia to return an Int instead of Float
+    teams[:ELO] = map(x -> x - div(x - mean_elo ,3), teams[:ELO])
     return teams
 end
 
 # Stole much of the code from
 # https://www.kaggle.com/kplauritzen/march-machine-learning-mania-2017/elo-ratings-in-python
 function simulate_games(games, teams)
-    for row in nrow(games)
+    for row in 1:nrow(games)
         w_id = games[row, :Wteam]
         l_id = games[row, :Lteam]
-        w_elo_before = teams[ teams[:Team_Id == w_id], :ELO ]
-        l_elo_before = teams[ teams[:Team_Id == l_id], :ELO ]
-        w_elo_after, l_elo_after = update_elo(w_elo_before, l_elo_before)
-        teams[ teams[:Team_Id == w_id], :ELO] = w_elo_after
-        teams[ teams[:Team_Id == l_id], :ELO] = l_elo_after
+        w_elo_before = teams[ teams[:Team_Id] .== w_id, :ELO ]
+        l_elo_before = teams[ teams[:Team_Id] .== l_id, :ELO ]
+        w_elo_after, l_elo_after = update_elo(w_elo_before[1,1], l_elo_before[1,1])
+
+        teams[ teams[:Team_Id] .== w_id, :ELO] = w_elo_after
+        teams[ teams[:Team_Id] .== l_id, :ELO] = l_elo_after
     end
     return teams
 end
@@ -77,14 +84,38 @@ end
 # Record ELO between regular season and tournament
 function save_tourney_seeds_ELO(tourney_seeds, teams, year)
     # wanted to do a one-liner or a map function but oh well
-    for i in nrow(tourney_seeds)
+    for i in 1:nrow(tourney_seeds)
         if tourney_seeds[ i, :Season] == year
-            team = tourney_seeds[:Team]
-            team_elo = teams[ teams[:Team_Id == team], :ELO ]
-            tourney_seeds[i, :ELO] = team_elo
+            team = tourney_seeds[i, :Team]
+            team_elo = teams[ teams[:Team_Id] .== team, :ELO ]
+            tourney_seeds[i, :ELO] = team_elo[1,1]
         end
     end
     return tourney_seeds
+end
+
+# Adjust the probabilites set in the current submission file
+function adjust_submission_probs(tourney_seeds, teams, submission)
+    for row in 1:nrow(submission)
+        curr_pred = submission[row,:pred]
+        # Split out season, team1, and team2
+        id = split(submission[row, :id], "_")
+        # Convert SubStrings to Int
+        season = parse(Int, id[1])
+        team1 = parse(Int, id[2])
+        team2 = parse(Int, id[3])
+
+        # Grab the ELOs for each team
+        team1_elo = tourney_seeds[ (tourney_seeds[:Season] .== season) & (tourney_seeds[:Team] .== team1), :ELO][1,1]
+        team2_elo = tourney_seeds[ (tourney_seeds[:Season] .== season) & (tourney_seeds[:Team] .== team2), :ELO][1,1]
+
+        probability = team1_elo / (team1_elo + team2_elo)
+        # Average the ELO prediction and random forest predictions together
+        probability = mean([curr_pred, probability])
+
+        submission[row, :pred] = probability
+    end
+    return submission
 end
 
 ### MAIN ###
@@ -93,7 +124,7 @@ function main()
         println("Need to provide submisison file as argument")
         exit(1)
     end
-    submission = ARGS[1]
+    submission = readtable(ARGS[1])
 
     season_results = readtable("./input/RegularSeasonCompactResults.csv")
     tourney_results = readtable("./input/TourneyCompactResults.csv")
@@ -105,12 +136,12 @@ function main()
     delete!(tourney_results, [:Wscore, :Lscore, :Wloc, :Numot])
 
     # Only consider data from 2010 onwards.  I want to give enough of a window for the mid-major conferences to lower their ELO compared to a major conference
-    season_results = season_results[ season_results[:Season] >= 2010],: ]
-    tourney_results = tourney_results[ tourney_results[:Season] >= 2010],: ]
-    tourney_seeds = tourney_seeds[ tourney_seeds[:Season] >= 2010],: ]
+    season_results = season_results[ season_results[:Season] .>= 2010,: ]
+    tourney_results = tourney_results[ tourney_results[:Season] .>= 2010,: ]
+    tourney_seeds = seeds[ seeds[:Season] .>= 2010,: ]
 
     # To start initial ELO adjustments, need tourney seeding from 2009
-    initial_seeds = tourney_seeds[ tourney_seeds[:Season] == 2009],: ]
+    initial_seeds = seeds[ seeds[:Season] .== 2009,: ]
 
     # Estabilish initial ELO for teams
     teams[:ELO] = fill(mean_elo, nrow(teams))
@@ -123,18 +154,22 @@ function main()
 
     for i in 2010:2016
         # Iterate through one season
-        one_season = season_results[ season_results[:Season] == i],: ]
+        one_season = season_results[ season_results[:Season] .== i,: ]
         teams = simulate_games(one_season, teams)
 
         tourney_seeds = save_tourney_seeds_ELO(tourney_seeds, teams, i)
 
         # Iterate through one tournament
-        one_tourney = tourney_results[ tourney_results[:Season] == i],: ]
+        one_tourney = tourney_results[ tourney_results[:Season] .== i,: ]
         teams = simulate_games(one_tourney, teams)
 
         # Update ELO scores in between seasons to regress towards the mean
         teams = update_end_of_season(teams)
     end
+
+    submission = adjust_submission_probs(tourney_seeds, teams, submission)
+    # Write results to csv, and call it a day
+    writetable("submission_using_elo.csv", submission)
 end
 
 main()
