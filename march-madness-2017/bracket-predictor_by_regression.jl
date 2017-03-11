@@ -98,8 +98,9 @@ tourney_training_data[:oAst_TO_ratio] = map((x,y) -> x / y, tourney_training_dat
 # showln(tourney_training_data)
 
 # Add seasonal average stats to tourney stats for a training model
-train = vcat(tourney_training_data, team_stats_by_season)
-test = train[ train[:Season] .>= 2013,: ]
+#train = vcat(tourney_training_data, team_stats_by_season)
+train = tourney_training_data
+test = team_stats_by_season[ team_stats_by_season[:Season] .>= 2013,: ]
 
 ### Time to do Regression ###
 
@@ -112,32 +113,28 @@ println(model)
 prediction = predict(model, test)
 test[:prediction] = map(x -> x, prediction)
 
-# # Time to read in the sample submission CSV and make our own
-# sample = readtable("./input/sample_submission.csv")
-# for row in 1:nrow(sample)
-#     # Split out season, team1, and team2
-#     id = split(sample[row, :id], "_")
-#     # Convert SubStrings to Int
-#     season = parse(Int, id[1])
-#     team1 = parse(Int, id[2])
-#     team2 = parse(Int, id[3])
-#     # Grab the win probability for each team
-#     team1_win = team_win_probability[ (team_win_probability[:Season] .== season) & (team_win_probability[:Team] .== team1), :Win]
-#     team2_win = team_win_probability[ (team_win_probability[:Season] .== season) & (team_win_probability[:Team] .== team2), :Win]
-#     team1_win = team1_win[1,1]
-#     team2_win = team2_win[1,1]
-#     #showln(team1_win)
-#     #showln(team2_win)
-#     probability = team1_win - team2_win + 0.5
-#     # Set upper and lower bounds
-#     if probability < 0
-#         probability = 0
-#     elseif probability > 1
-#         probability = 1
-#     end
-#     sample[row, :pred] = probability
-# end
-#
-# # Write results to csv, and call it a day
-# #showln(sample)
-# writetable("submission_rf.csv", sample)
+# Time to read in the sample submission CSV and make our own
+sample = readtable("./input/sample_submission.csv")
+for row in 1:nrow(sample)
+    # Split out season, team1, and team2
+    id = split(sample[row, :id], "_")
+    # Convert SubStrings to Int
+    season = parse(Int, id[1])
+    team1 = parse(Int, id[2])
+    team2 = parse(Int, id[3])
+    # Grab the win probability for each team
+    team1_pred = test[ (test[:Season] .== season) & (test[:Team] .== team1), :prediction][1,1]
+    team2_pred = test[ (test[:Season] .== season) & (test[:Team] .== team2), :prediction][1,1]
+    probability = team1_pred - team2_pred + 0.5
+    # Set upper and lower bounds
+    if probability < 0
+        probability = 0
+    elseif probability > 1
+        probability = 1
+    end
+    sample[row, :pred] = probability
+end
+
+# Write results to csv, and call it a day
+#showln(sample)
+writetable("submission_regression.csv", sample)
