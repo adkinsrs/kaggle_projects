@@ -1,6 +1,10 @@
 #!/usr/bin/env julia
 
 # My attempt to model the March Madness brackets based on the past 4 seasons, and apply it to predicting the 2017 tournament
+
+# This particular attempt uses Random Forest modeling to predict the bracket.  This is also my first attempt so the code may not be as short-hand as I'd like.
+
+
 using DataFrames
 using DecisionTree
 
